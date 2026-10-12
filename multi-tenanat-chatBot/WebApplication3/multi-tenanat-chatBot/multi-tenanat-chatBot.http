@@ -1,6 +1,0 @@
-@multi_tenanat_chatBot_HostAddress = http://localhost:5078
-
-GET {{multi_tenanat_chatBot_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###

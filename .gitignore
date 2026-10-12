@@ -1,2 +1,16 @@
-bin/
-obj/
+﻿# Build output
+[Bb]in/
+[Oo]bj/
+
+# Visual Studio and Rider personal settings
+.vs/
+.idea/
+*.user
+*.suo
+*.DotSettings.user
+
+# Local files
+*.log
+.env
+.env.*
+!.env.example
