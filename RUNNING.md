@@ -1,5 +1,7 @@
 # Run locally on Windows with Visual Studio
 
+For the full backend in Docker on Linux, follow [LINUX.md](LINUX.md).
+
 Run MySQL, MongoDB, Qdrant, and Ollama in Docker; run the .NET API on Windows for Visual Studio debugging.
 
 ## 1. Prerequisites
@@ -16,7 +18,7 @@ Open PowerShell in the directory containing `compose.yaml`:
 
 ```powershell
 Set-Location 'C:\Users\HP\Documents\rag-project\multi-tenant-rag-chatbot'
-docker compose up -d --wait
+docker compose up -d --wait mysql mongodb qdrant ollama mailpit
 docker compose ps
 ```
 

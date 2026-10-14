@@ -12,6 +12,10 @@ Log.Logger = new LoggerConfiguration().WriteTo.Console().CreateLogger();
 try
 {
     var builder = WebApplication.CreateBuilder(args);
+    if (builder.Configuration.GetValue<bool>("ContainerSetup:Enabled"))
+    {
+        ContainerSetup.ConfigureSigningKey(builder.Configuration);
+    }
     builder.Services.AddSerilog();
     builder.Services.AddProblemDetails();
     builder.Services.AddApiDocumentation();
@@ -20,6 +24,10 @@ try
     builder.Services.AddApiSecurity(builder.Configuration);
     builder.Services.AddControllers(options => options.Filters.Add<ApiKey>()).AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(allowIntegerValues: false)));
     var app = builder.Build();
+    if (builder.Configuration.GetValue<bool>("ContainerSetup:Enabled"))
+    {
+        await ContainerSetup.InitializeAsync(app.Services, builder.Configuration);
+    }
     if (builder.Configuration.GetValue<bool>("bootstrap-owner"))
     {
         using var scope = app.Services.CreateScope();

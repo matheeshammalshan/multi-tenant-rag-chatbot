@@ -12,6 +12,7 @@
 # Local files
 appsettings.json
 appsettings.*.json
+!Api/appsettings.json
 *.log
 .env
 .env.*

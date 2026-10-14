@@ -1,0 +1,11 @@
+**/bin
+**/obj
+**/appsettings.*.json
+.git
+.vs
+.nuget
+.env
+.env.*
+frontend
+tests
+**/*.log

@@ -1,7 +1,43 @@
-# Local development dependencies. Run the API from Visual Studio or dotnet run.
+# Complete local development stack, including the Linux-compatible API.
 name: chatbot-dev
 
 services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:${API_PORT:-5270}:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ContainerSetup__Enabled: "true"
+      ContainerSetup__StateDirectory: /app/state
+      ConnectionStrings__MySql: "server=mysql;port=3306;user=root;password=${MYSQL_ROOT_PASSWORD:-1234};database=ragPipeline"
+      MongoDB__ConnectionString: mongodb://mongodb:27017/
+      Qdrant__HttpUrl: http://qdrant:6333
+      Qdrant__GrpcUrl: http://qdrant:6334
+      Qdrant__Collection: rag-pipeline
+      Ollama__BaseUrl: http://ollama:11434
+      Ollama__Model: nomic-embed-text
+      Smtp__Host: mailpit
+      Storage__Root: /app/uploads
+      Groq__ApiKey: "${GROQ_API_KEY:-}"
+      AllowedOrigins__0: "${FRONTEND_ORIGIN:-http://localhost:5173}"
+      Frontend__PasswordResetUrl: "${FRONTEND_ORIGIN:-http://localhost:5173}/reset-password"
+    volumes:
+      - api_state:/app/state
+      - uploads:/app/uploads
+    depends_on:
+      mysql:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+      mailpit:
+        condition: service_started
   mailpit:
     image: axllent/mailpit:latest
     ports:
@@ -10,7 +46,7 @@ services:
   mysql:
     image: mysql:8.0
     environment:
-      MYSQL_ROOT_PASSWORD: "1234"
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:-1234}"
       MYSQL_ROOT_HOST: "%"
       MYSQL_DATABASE: ragPipeline
     ports:
@@ -57,6 +93,8 @@ services:
       retries: 30
 
 volumes:
+  api_state:
+  uploads:
   mysql_data:
   mongodb_data:
   qdrant_data:
