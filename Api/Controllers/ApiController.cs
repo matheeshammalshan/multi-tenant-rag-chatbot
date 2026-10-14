@@ -1,28 +1,32 @@
-using Application.Interfaces.Services;
-using Api.Filters;
 using Application.DTOs;
-using Application.Services;
-using System.Threading.Tasks;
+using Application.Interfaces.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Api.Controllers
 {
-    [ApiController]
-    [Route("[controller]")]
-    public class ApiController
+    [ApiController, Route("Api")]
+    public class ApiController : ControllerBase
     {
-        private readonly IApiKeyService _apiKeyService;
-    
-        public ApiController(IApiKeyService apiKeyService)
+        private readonly IApiKeyService service;
+        private readonly IResourceAccessService access;
+        public ApiController(IApiKeyService service, IResourceAccessService access)
         {
-            _apiKeyService = apiKeyService;
-        
+            this.service = service;
+            this.access = access;
         }
-        
-        [HttpGet("create-apikey")]
-        public async Task<string> GenerateApiKey([FromBody]ApiKeyDto dto)
+
+        [HttpPost("create-apikey")]
+        public async Task<ApiKeyResult> GenerateApiKey(ApiKeyDto request)
         {
-            return await _apiKeyService.GenerateApiKey(dto);
+            await access.RequireChatbotAsync(request.ChatBotId);
+            var key = await service.GenerateApiKey(request);
+            return new ApiKeyResult(request.ChatBotId, key, key.Substring(0, 11));
+        }
+
+        [HttpPost("/ChatBots/{id:int}/api-key")]
+        public Task<ApiKeyResult> Rotate(int id)
+        {
+            return GenerateApiKey(new ApiKeyDto { ChatBotId = id });
         }
     }
 }

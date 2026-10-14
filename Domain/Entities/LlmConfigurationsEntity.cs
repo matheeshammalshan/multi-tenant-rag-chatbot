@@ -9,15 +9,13 @@ namespace Domain.Entities
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public int Id { get; set; }
-    
+
         [ForeignKey(nameof(ChatBotEntity))]
         public int ChatBotId { get; set; }
-    
         public LlmModelsDto ModelName { get; set; }
         public double Temperature { get; set; }
         public int MaxToken { get; set; }
         public double TopP { get; set; }
-    
         public ChatBotEntity? ChatBotEntity { get; set; }
     }
 }

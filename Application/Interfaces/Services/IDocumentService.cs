@@ -5,6 +5,6 @@ namespace Application.Interfaces.Services
 {
     public interface IDocumentService
     {
-        Task CreateDocument(DocumentDto documentDto);
+        Task<DocumentResponseDto> CreateDocument(DocumentDto documentDto);
     }
 }

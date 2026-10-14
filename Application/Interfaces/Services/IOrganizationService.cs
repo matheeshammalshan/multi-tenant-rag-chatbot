@@ -6,6 +6,6 @@ namespace Application.Interfaces.Services
 {
     public interface IOrganizationService
     {
-         Task<OrganizationEntity> CreateOrganization(OrganizationDetailsDto org);
+        Task<OrganizationEntity> CreateOrganization(OrganizationDetailsDto org);
     }
 }

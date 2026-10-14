@@ -7,5 +7,7 @@ namespace Application.Interfaces.Integrations
     {
         Task SaveFile(DocumentDto documentDto);
         string CreatePath(DocumentDto document);
+        Stream OpenRead(string path);
+        void Delete(string path);
     }
 }

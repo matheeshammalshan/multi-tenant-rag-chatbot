@@ -10,8 +10,14 @@
 *.DotSettings.user
 
 # Local files
+appsettings.json
+appsettings.*.json
 *.log
 .env
 .env.*
 !.env.example
 .github
+.backend-checks/
+
+# Local package cache
+.nuget/

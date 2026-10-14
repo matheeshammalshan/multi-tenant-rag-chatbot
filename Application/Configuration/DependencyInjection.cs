@@ -11,7 +11,6 @@ namespace Application.Configuration
     {
         public static IServiceCollection AddApplication(this IServiceCollection services)
         {
-            services.AddAutoMapper(typeof(MappingProfile));
             services.AddScoped<IOrganizationService, OrganizationService>();
             services.AddScoped<IChatBotService, ChatBotService>();
             services.AddScoped<ILlmConfigService, LlmConfigService>();
@@ -21,6 +20,7 @@ namespace Application.Configuration
             services.AddScoped<ISemanticSearchService, SemanticSearchService>();
             services.AddScoped<IApiKeyService, ApiKeyService>();
             services.AddScoped<IChatHistoryService, ChatHistoryService>();
+            services.AddScoped<IResourceAccessService, ResourceAccessService>();
             return services;
         }
     }

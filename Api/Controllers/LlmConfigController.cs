@@ -1,26 +1,44 @@
-using Application.Interfaces.Services;
 using Application.DTOs;
-using System.Threading.Tasks;
+using Application.Interfaces.Repositories;
+using Application.Interfaces.Services;
+using Application.Exceptions;
+using Domain.Enums;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Api.Controllers
 {
-    [ApiController]
-    [Route("[controller]")]
-    public class LlmConfigController:ControllerBase
+    [ApiController, Route("LlmConfig")]
+    public class LlmConfigController : ControllerBase
     {
-        private readonly ILlmConfigService _configService;
-
-        public LlmConfigController(ILlmConfigService configService)
+        private readonly ILlmConfigService service;
+        private readonly IResourceAccessService access;
+        private readonly IApplicationRepository repository;
+        public LlmConfigController(ILlmConfigService service, IResourceAccessService access, IApplicationRepository repository)
         {
-            _configService = configService;
+            this.service = service;
+            this.access = access;
+            this.repository = repository;
         }
-    
-        [HttpPut("update")]
-        public async Task<IActionResult> CreateConfig([FromBody] LlmConfigurationsDto configDto)
+
+        [HttpGet("{chatBotId:int}")]
+        public async Task<LlmConfigurationsDto> Get(int chatBotId)
         {
-            await _configService.CreateConfig(configDto);
-            return Ok();
+            await access.RequireChatbotAsync(chatBotId);
+            var config = await repository.FindConfigurationAsync(chatBotId) ?? throw ApiException.NotFound("Configuration");
+            return new LlmConfigurationsDto(config.ChatBotId, config.ModelName, config.Temperature, config.MaxToken, config.TopP);
+        }
+
+        [HttpPut("update")]
+        public async Task<LlmConfigurationsDto> Update(LlmConfigurationsDto request)
+        {
+            await access.RequireChatbotAsync(request.ChatBotId);
+            if (request.ModelName != LlmModelsDto.GptOss20B && request.ModelName != LlmModelsDto.GptOss120B)
+            {
+                throw new ApiException(400, "This model has been retired by Groq. Choose an available model from /Models.");
+            }
+
+            await service.CreateConfig(request);
+            return await Get(request.ChatBotId);
         }
     }
 }

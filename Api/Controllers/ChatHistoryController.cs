@@ -1,26 +1,26 @@
-using Application.Interfaces.Services;
 using Application.DTOs;
-using Application.Services;
+using Application.Interfaces.Repositories;
+using Application.Interfaces.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Api.Controllers
 {
-    [ApiController]
-    [Route("[controller]")]
+    [ApiController, Route("ChatHistory")]
     public class ChatHistoryController
     {
-        private readonly IChatHistoryService _chatHistoryService;
-    
-        public ChatHistoryController(IChatHistoryService chatHistoryService)
+        private readonly IChatHistoryRepository repository;
+        private readonly IResourceAccessService access;
+        public ChatHistoryController(IChatHistoryRepository repository, IResourceAccessService access)
         {
-            _chatHistoryService=chatHistoryService;
-        
+            this.repository = repository;
+            this.access = access;
         }
-    
-        [HttpGet("{chatBotId}")]
-        public async Task<List<ChatHistoryResponseDto>> GetChatHistory(int chatBotId)
+
+        [HttpGet("{chatBotId:int}")]
+        public async Task<List<ChatHistoryResponseDto>> Get(int chatBotId, [FromQuery] Guid? conversationId, [FromQuery] int skip = 0, [FromQuery] int take = 100)
         {
-            return await _chatHistoryService.RetriveAllChatHistory(chatBotId);
+            await access.RequireChatbotAsync(chatBotId);
+            return await repository.GetPageAsync(chatBotId, conversationId, Math.Max(0, skip), Math.Clamp(take, 1, 200));
         }
     }
 }

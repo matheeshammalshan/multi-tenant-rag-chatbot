@@ -1,65 +1,55 @@
-using Application.Interfaces.Integrations;
 using Application.DTOs;
-using System;
-using System.IO;
-using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
+using Application.Interfaces.Integrations;
+using Microsoft.Extensions.Configuration;
 
 namespace Infrastructure.FileStorage
 {
-    public class FileService: IFileService
+    public class FileService : IFileService
     {
-        private string _baseDirectory = "wwwroot";
-        private readonly ILogger<FileService> _logger;
-
-        public FileService(ILogger<FileService> logger)
+        public FileService(IConfiguration configuration)
         {
-            _logger = logger;
+            this.root = Path.GetFullPath(configuration["Storage:Root"] ?? Path.Combine(AppContext.BaseDirectory, "uploads"));
         }
 
-        public async Task SaveFile(DocumentDto documentDto)
-        {
-            string dirPath = _baseDirectory + "/" + documentDto.Id;
-        
-            if (!Directory.Exists(dirPath))
-            {
-                try
-                {
-                    Directory.CreateDirectory(dirPath);
-                    _logger.LogInformation($"Created directory {dirPath}");
-                }
-                catch (NotSupportedException e)
-                {
-                    _logger.LogError(e.Message);
-                    throw;
-                }
-            }
-            await CreateFile(dirPath,documentDto);
-        }
-
+        private readonly string root;
         public string CreatePath(DocumentDto document)
         {
-            return _baseDirectory+"/"+document.Id+"/"+document.File.FileName;
+            if (document.Id <= 0)
+            {
+                throw new InvalidOperationException("Save the document record before storing its file.");
+            }
+
+            var extension = document.ReaderType == ReaderType.Pdf ? ".pdf" : ".txt";
+            return Path.Combine(root, document.Id.ToString(), "source" + extension);
         }
 
-        public async Task CreateFile(string dirPath, DocumentDto documentDto)
+        public async Task SaveFile(DocumentDto document)
         {
-            string path = _baseDirectory+"/"+documentDto.Id+"/"+documentDto.File.FileName;
-        
-            using (var stream = new FileStream(path, FileMode.Create))
-            {
-                try
-                {
-                    await documentDto.File.CopyToAsync(stream); 
-                    _logger.LogInformation($"Created file {path}");
+            var path = CreatePath(document);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            await using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, true);
+            await document.File.CopyToAsync(stream);
+        }
 
-                }
-                catch (Exception e)
-                {
-                    _logger.LogError(e.Message);
-                    throw;
-                }
+        public Stream OpenRead(string path)
+        {
+            return new FileStream(Validate(path), FileMode.Open, FileAccess.Read, FileShare.Read);
+        }
+
+        public void Delete(string path)
+        {
+            File.Delete(Validate(path));
+        }
+
+        private string Validate(string path)
+        {
+            var full = Path.GetFullPath(path);
+            if (!full.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("File path is outside private storage.");
             }
+
+            return full;
         }
     }
 }

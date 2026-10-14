@@ -1,55 +1,58 @@
+using System.Net.Http.Json;
+using System.Text.Json;
+using Application.Exceptions;
 using Application.Interfaces.Integrations;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Qdrant.Grpc;
+using Microsoft.Extensions.Configuration;
 
 namespace Infrastructure.Embeddings
 {
-    public class RetriveEmbeddings:IRetriveEmbeddings
+    public class RetriveEmbeddings : IRetriveEmbeddings
     {
-        public async Task<string> RetriveEmbeddingsAsWords(float[] queary,int chatbotId)
+        private readonly IHttpClientFactory clients;
+        private readonly IConfiguration configuration;
+        public RetriveEmbeddings(IHttpClientFactory clients, IConfiguration configuration)
         {
-            string retriveQuery="";
-        
-            var channel = QdrantChannel.ForAddress("http://localhost:6334");
-            var client = new QdrantGrpcClient(channel);
+            this.clients = clients;
+            this.configuration = configuration;
+        }
 
-            var search = new SearchPoints
+        public Task<string> RetriveEmbeddingsAsWords(float[] query, int chatbotId)
+        {
+            return SearchAsync(query, chatbotId, null);
+        }
+
+        public Task<string> RetrieveReadyAsync(float[] query, int chatbotId, int[] documentIds)
+        {
+            return SearchAsync(query, chatbotId, documentIds);
+        }
+
+        private async Task<string> SearchAsync(float[] query, int chatbotId, int[]? documentIds)
+        {
+            var conditions = new List<object>
             {
-                CollectionName = "rag-pipeline",
-                Limit = 5,
-
-                WithPayload = new WithPayloadSelector { Enable = true },
-                WithVectors = new WithVectorsSelector { Enable = false },
-
-                Filter = new Filter
+                new
                 {
-                    Must =
+                    key = "chatbotId",
+                    match = new
                     {
-                        new Condition
-                        {
-                            Field = new FieldCondition
-                            {
-                                Key = "chatbotId",
-                                Match = new Match { Integer = chatbotId }
-                            }
-                        }
+                        value = chatbotId
                     }
                 }
             };
-
-            search.Vector.AddRange(queary);
-
-            var response = await client.Points.SearchAsync(search);
-            List<ScoredPoint> p=response.Result.ToList();
-
-            foreach (var i in p)
+            if (documentIds != null)
             {
-                retriveQuery=retriveQuery+i.Payload["text"].StringValue;
+                conditions.Add(new { key = "documentId", match = new { any = documentIds } });
             }
-            return retriveQuery;
-        
+
+            var url = (configuration["Qdrant:HttpUrl"] ?? "http://localhost:6333").TrimEnd('/') + "/collections/" + Uri.EscapeDataString(configuration["Qdrant:Collection"] ?? "rag-pipeline") + "/points/search";
+            using var response = await clients.CreateClient().PostAsJsonAsync(url, new { vector = query, limit = 5, with_payload = true, filter = new { must = conditions } });
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new ApiException(502, "Vector search failed.");
+            }
+
+            using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            return string.Join("\n", json.RootElement.GetProperty("result").EnumerateArray().Select(x => x.GetProperty("payload").GetProperty("text").GetString()));
         }
     }
 }

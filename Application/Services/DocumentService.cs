@@ -1,108 +1,80 @@
+using Application.DTOs;
+using Application.Exceptions;
 using Application.Interfaces.Integrations;
-using Application.Interfaces.Observers;
 using Application.Interfaces.Repositories;
 using Application.Interfaces.Services;
-using Application.DTOs;
-using Application.Observers;
 using Domain.Entities;
-using System;
-using System.Linq;
-using System.Threading.Tasks;
-using AutoMapper;
-using Microsoft.Extensions.Logging;
 
 namespace Application.Services
 {
-    public class DocumentService:IDocumentService
+    public class DocumentService : IDocumentService
     {
-        private readonly IDocumentNotifier _notifier;
-        private readonly IMapper _mapper;
-        private readonly IApplicationRepository _appDb;
-        private readonly IFileService _fileService;
-        private readonly ILogger<DocumentService> _logger;
-        private readonly IChunckCreater _chunkCreater;
-        private readonly IEmbeddingsCreater _embeddingsCreater;
-        private readonly ISavingEmbeddings _savingEmbeddings;
-        private readonly ISubjectObserver _subjectObserver;
-        public DocumentService(IMapper mapper, IApplicationRepository appDb,IFileService fileService, 
-            ILogger<DocumentService> logger,IChunckCreater  chunkCreater,
-            IEmbeddingsCreater embeddingsCreater,ISavingEmbeddings savingEmbeddings,
-            ISubjectObserver subjectObserver, IDocumentNotifier notifier)
+        private readonly IApplicationRepository repository;
+        private readonly IFileService files;
+        private readonly IResourceAccessService access;
+        public DocumentService(IApplicationRepository repository, IFileService files, IResourceAccessService access)
         {
-            _notifier = notifier;
-            _mapper = mapper;
-            _appDb = appDb;
-            _fileService = fileService;
-            _logger = logger;
-            _chunkCreater = chunkCreater;
-            _embeddingsCreater = embeddingsCreater;
-            _savingEmbeddings = savingEmbeddings;
-            _subjectObserver = subjectObserver;
+            this.repository = repository;
+            this.files = files;
+            this.access = access;
         }
 
-        public async Task CreateDocument(DocumentDto documentDto)
+        public async Task<DocumentResponseDto> CreateDocument(DocumentDto request)
         {
-            var document = _mapper.Map<DocumentDto,DocumentEntity>(documentDto);
-       
-            using var transaction = await _appDb.BeginTransactionAsync();
-        
-            DocumentResponseDto responseDto=new DocumentResponseDto();
-            responseDto.Message = "document is uploaded";
-            responseDto.Status = "Processing";
-            await _notifier.NotifyAsync(responseDto);
-        
+            await access.RequireChatbotAsync(request.ChatBotId);
+            var length = request.File.Length;
+            if (length == null || length <= 0 || length > 20 * 1024 * 1024)
+            {
+                throw new ApiException(400, "Upload a non-empty file of at most 20 MB.");
+            }
+
+            var name = Path.GetFileName(request.File.FileName.Replace('\\', '/'));
+            var extension = Path.GetExtension(name).ToLowerInvariant();
+            if (name.Length > 100 || (request.ReaderType == ReaderType.Pdf ? extension != ".pdf" : request.ReaderType != ReaderType.Text || (extension != ".txt" && extension != ".md")))
+            {
+                throw new ApiException(400, "The filename or extension does not match the selected reader type.");
+            }
+
+            var document = new DocumentEntity
+            {
+                ChatBotId = request.ChatBotId,
+                Name = name,
+                Size = (float)length / 1048576,
+                UploadDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                Status = "Processing",
+                ReaderType = request.ReaderType.ToString()
+            };
+            using var transaction = await repository.BeginTransactionAsync();
+            string? path = null;
             try
             {
-            
-                await _appDb.AddAsync(document);
-                await _appDb.SaveChangesAsync();
-                documentDto.Id = document.Id;
-                documentDto.FileUrl=_fileService.CreatePath(documentDto);
-                document.FileUrl=documentDto.FileUrl;
-                await _fileService.SaveFile(documentDto);
-            
-                _appDb.Update(document);
-                await _appDb.SaveChangesAsync();
-            
-                string[] chunkList=await _chunkCreater.ChunkCreate(documentDto);
-
-                foreach (var sentense in chunkList)
-                {
-                    float[]? a = await _embeddingsCreater.CreateEmbeddings(sentense);
-                    await _savingEmbeddings.CreateEmbeddingsOnDb(documentDto,a,sentense);
-                }
-                responseDto.Message = "document is Proceed successfully";
-                responseDto.Status = "Proceed";
-                responseDto.Chunks=chunkList.Count();
-            
-                await _notifier.NotifyAsync(responseDto);
-            
-                document.Status="Proceed";
-                document.Chunks=chunkList.Count();
-
-                _appDb.Update(document);
-                await _appDb.SaveChangesAsync();
-
-                await _subjectObserver.AddChange(new AnalysisDto(
-                    documentDto.ChatBotId,
-                    0,
-                    1,
-                    document.Chunks
-                ));
-            
+                await repository.AddAsync(document);
+                await repository.SaveChangesAsync();
+                request.Id = document.Id;
+                path = files.CreatePath(request);
+                document.FileUrl = path;
+                await files.SaveFile(request);
+                await repository.AddAsync(new DocumentProcessingJob { DocumentId = document.Id });
+                await repository.SaveChangesAsync();
                 await transaction.CommitAsync();
-
-                _logger.LogInformation($"Document {document.Id} created successfully");
-
+                return new DocumentResponseDto()
+                {
+                    DocumentId = document.Id,
+                    ChatBotId = document.ChatBotId,
+                    Status = document.Status,
+                    Message = "Upload accepted for processing."
+                };
             }
-            catch (Exception e)
+            catch
             {
                 await transaction.RollbackAsync();
-                _logger.LogError(e, $"error creating document {document.Id}");
+                if (path != null)
+                {
+                    files.Delete(path);
+                }
+
                 throw;
             }
-
         }
-    
     }
 }

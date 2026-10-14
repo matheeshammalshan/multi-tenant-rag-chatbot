@@ -6,8 +6,14 @@ namespace Application.Interfaces.Repositories
     {
         Task<ChatBotEntity?> FindChatBotAsync(int id);
         Task<LlmConfigurationEntity?> FindConfigurationAsync(int chatBotId);
-        Task AddAsync<T>(T entity) where T : class;
-        void Update<T>(T entity) where T : class;
+        Task<ChatBotEntity?> FindChatBotByApiKeyAsync(string key);
+        Task<DocumentEntity?> FindDocumentAsync(int id);
+        Task RecordQueryAsync(int chatbotId);
+        Task<int[]> ReadyDocumentIdsAsync(int chatbotId);
+        Task AddAsync<T>(T entity)
+            where T : class;
+        void Update<T>(T entity)
+            where T : class;
         Task<int> SaveChangesAsync();
         Task<IApplicationTransaction> BeginTransactionAsync();
     }

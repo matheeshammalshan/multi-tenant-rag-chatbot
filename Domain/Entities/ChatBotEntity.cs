@@ -9,25 +9,28 @@ namespace Domain.Entities
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public int Id { get; set; }
-    
+
         [ForeignKey(nameof(Organization))]
         public int OrganizationId { get; set; }
-    
+
         [MaxLength(255)]
         public string? Name { get; set; }
+
         [MaxLength(255)]
         public string? Description { get; set; }
+
         [MaxLength(255)]
         public string? SystemPromt { get; set; }
+
         [MaxLength(255)]
         public string? ApiKey { get; set; }
-    
+        public string? ApiKeyHash { get; set; }
+        public string? ApiKeyPrefix { get; set; }
+        public Guid? CreatedByUserId { get; set; }
+        public UserAccount? CreatedByUser { get; set; }
         public OrganizationEntity? Organization { get; set; }
-    
         public LlmConfigurationEntity? LlmConfiguration { get; set; }
-    
-        public ICollection<DocumentEntity>?  Documents { get; set; }=new List<DocumentEntity>();
-    
+        public ICollection<DocumentEntity>? Documents { get; set; } = new List<DocumentEntity>();
         public AnalysisEntity? AnalysisEntity { get; set; }
     }
 }

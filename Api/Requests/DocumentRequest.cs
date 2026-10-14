@@ -1,4 +1,5 @@
 using Application.DTOs;
+
 namespace Api.Requests
 {
     public sealed class DocumentRequest
@@ -12,11 +13,21 @@ namespace Api.Requests
         public required IFormFile File { get; set; }
         public string? FileUrl { get; set; }
         public ReaderType ReaderType { get; set; }
-        public DocumentDto ToDto(Stream content) => new()
+
+        public DocumentDto ToDto(Stream content)
         {
-            Id = Id, ChatBotId = ChatBotId, Name = Name, Size = Size,
-            UploadDate = UploadDate, Status = Status, FileUrl = FileUrl,
-            ReaderType = ReaderType, File = new DocumentUpload(File.FileName, content)
-        };
+            return new DocumentDto()
+            {
+                Id = Id,
+                ChatBotId = ChatBotId,
+                Name = Name,
+                Size = Size,
+                UploadDate = UploadDate,
+                Status = Status,
+                FileUrl = FileUrl,
+                ReaderType = ReaderType,
+                File = new DocumentUpload(File.FileName, content)
+            };
+        }
     }
 }

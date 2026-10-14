@@ -5,10 +5,9 @@ using System.Collections.Generic;
 
 namespace Infrastructure.DocumentReaders
 {
-    public class ReaderSelector:IReaderSelector
+    public class ReaderSelector : IReaderSelector
     {
-        Dictionary<ReaderType,IReaders>  _readers = new Dictionary<ReaderType,IReaders>();
-
+        Dictionary<ReaderType, IReaders> _readers = new Dictionary<ReaderType, IReaders>();
         public ReaderSelector(IEnumerable<IReaders> readers)
         {
             foreach (var reader in readers)
@@ -17,7 +16,7 @@ namespace Infrastructure.DocumentReaders
                 {
                     if (reader.CheckType(readerType))
                     {
-                        _readers.Add(readerType,reader);
+                        _readers.Add(readerType, reader);
                     }
                 }
             }

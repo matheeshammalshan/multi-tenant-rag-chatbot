@@ -6,7 +6,7 @@ namespace Application.Interfaces.Services
 {
     public interface ILlmConfigService
     {
-         Task<LlmConfigurationEntity> CreateConfig(LlmConfigurationsDto configDto);
-         Task<LlmConfigurationEntity> DefaultConfig(LlmConfigurationsDto configDto);
+        Task<LlmConfigurationEntity> CreateConfig(LlmConfigurationsDto configDto);
+        Task<LlmConfigurationEntity> DefaultConfig(LlmConfigurationsDto configDto);
     }
 }

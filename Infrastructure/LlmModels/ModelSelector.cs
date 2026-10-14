@@ -5,10 +5,9 @@ using System.Collections.Generic;
 
 namespace Infrastructure.LlmModels
 {
-    public class ModelSelector:IModelSelector
+    public class ModelSelector : IModelSelector
     {
-        private Dictionary<LlmModelsDto,IModels> _llmModels=new Dictionary<LlmModelsDto,IModels>();
-
+        private Dictionary<LlmModelsDto, IModels> _llmModels = new Dictionary<LlmModelsDto, IModels>();
         public ModelSelector(IEnumerable<IModels> models)
         {
             foreach (var model in models)
@@ -17,7 +16,7 @@ namespace Infrastructure.LlmModels
                 {
                     if (model.CheckModelType(llmModelsDto))
                     {
-                        _llmModels.Add(llmModelsDto,model);
+                        _llmModels.Add(llmModelsDto, model);
                     }
                 }
             }

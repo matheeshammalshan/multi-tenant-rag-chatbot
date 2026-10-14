@@ -7,29 +7,22 @@ using System.Threading.Tasks;
 
 namespace Infrastructure.DocumentReaders
 {
-    public class TextDocumentReader:IReaders
-    { 
+    public class TextDocumentReader : IReaders
+    {
         public async Task<string[]> CreateText(DocumentDto doc)
         {
             using var buffer = new MemoryStream();
             await doc.File.CopyToAsync(buffer);
             buffer.Position = 0;
             using var reader = new StreamReader(buffer);
-    
             string text = await reader.ReadToEndAsync();
-
-            string[] sentences = text
-                .Split(new[] { '.', '!', '?' }, StringSplitOptions.RemoveEmptyEntries)
-                .Select(s => s.Trim())
-                .ToArray();
-
+            string[] sentences = text.Split(new[] { '.', '!', '?' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToArray();
             return sentences;
-
         }
+
         public bool CheckType(ReaderType type)
         {
-            return type==ReaderType.Text;
+            return type == ReaderType.Text;
         }
-    
     }
 }

@@ -1,48 +1,73 @@
-using Application.Interfaces.Integrations;
-using Application.Configuration;
-using Infrastructure.Configuration;
+using System.Text.Json.Serialization;
+using Api.Configuration;
 using Api.Filters;
-using Api.WebSockets;
-using Infrastructure.Observers;
-using Infrastructure.Persistence;
+using Api.Middleware;
+using Api.Security;
+using Application.Configuration;
+using Application.Interfaces.Services;
+using Infrastructure.Configuration;
 using Serilog;
 
 Log.Logger = new LoggerConfiguration().WriteTo.Console().CreateLogger();
-
 try
 {
-    Log.Information("Starting web application");
     var builder = WebApplication.CreateBuilder(args);
     builder.Services.AddSerilog();
-    builder.Services.AddOpenApi();
+    builder.Services.AddProblemDetails();
+    builder.Services.AddApiDocumentation();
     builder.Services.AddApplication();
-    builder.Services.AddInfrastructure();
-    builder.Services.AddSingleton<IDocumentNotifier, WebSocketDocumentNotifier>();
-    builder.Services.AddControllers(options => options.Filters.Add<ApiKey>());
-
+    builder.Services.AddInfrastructure(builder.Configuration);
+    builder.Services.AddApiSecurity(builder.Configuration);
+    builder.Services.AddControllers(options => options.Filters.Add<ApiKey>()).AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(allowIntegerValues: false)));
     var app = builder.Build();
-    app.UseWebSockets();
-    app.Map("/ws/chat", WebSocketHandler.Handle);
-
-    using (var scope = app.Services.CreateScope())
+    if (builder.Configuration.GetValue<bool>("bootstrap-owner"))
     {
-        var db = scope.ServiceProvider.GetRequiredService<AppDb>();
-        db.Database.EnsureCreated();
+        using var scope = app.Services.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<IAuthService>().BootstrapOwnerAsync(builder.Configuration["BootstrapOwner:Email"] ?? throw new InvalidOperationException("Configure BootstrapOwner:Email."), builder.Configuration["BootstrapOwner:Password"] ?? throw new InvalidOperationException("Configure BootstrapOwner:Password."), builder.Configuration["BootstrapOwner:Name"] ?? "Console Owner");
+        Log.Information("Platform owner created. Remove BootstrapOwner secrets after setup.");
+        return;
     }
 
-    if (app.Environment.IsDevelopment()) app.MapOpenApi();
-    // Construct the observer once to subscribe it to document processing events.
-    _ = app.Services.GetRequiredService<DocAndChunksObserver>();
+    app.UseSerilogRequestLogging();
+    app.UseMiddleware<ApiExceptionMiddleware>();
+    if (!app.Environment.IsDevelopment())
+    {
+        app.UseHsts();
+        app.UseHttpsRedirection();
+    }
+
     app.UseRouting();
+    app.UseCors("Frontend");
+    app.UseAuthentication();
+    app.UseMiddleware<BrowserSecurityMiddleware>();
+    if (app.Environment.IsDevelopment())
+    {
+        app.MapOpenApi().AllowAnonymous();
+        app.UseSwaggerUI(options =>
+        {
+            options.SwaggerEndpoint("/openapi/v1.json", "Chatbot API v1");
+            options.RoutePrefix = "swagger";
+            options.DocumentTitle = "Chatbot API";
+            options.UseRequestInterceptor("function (request) { const token = document.cookie.split('; ').find(x => x.startsWith('csrf_token=')); if (token) request.headers['X-CSRF-Token'] = decodeURIComponent(token.substring(11)); return request; }");
+        });
+    }
+
     app.UseAuthorization();
+    app.UseRateLimiter();
+    app.MapGet("/health", () => Results.Ok(new { status = "Healthy" })).AllowAnonymous();
     app.MapControllers();
-    app.Run();
+    await app.RunAsync();
 }
-catch (Exception ex)
+catch (Exception exception)
 {
-    Log.Fatal(ex, "Application terminated unexpectedly");
+    Log.Fatal(exception, "Application terminated unexpectedly");
+    throw;
 }
 finally
 {
     Log.CloseAndFlush();
+}
+
+public partial class Program
+{
 }

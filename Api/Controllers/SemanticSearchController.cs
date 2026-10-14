@@ -1,37 +1,70 @@
+using System.Text.Json;
+using Application.DTOs;
+using Application.Exceptions;
 using Application.Interfaces.Services;
 using Api.Filters;
-using Application.DTOs;
-using Application.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Api.Controllers
 {
-    [ApiController]
-    [Route("[controller]")]
-    [RequiredApiKey]
-    public class SemanticSearchController: ControllerBase
+    [ApiController, Route("SemanticSearch"), AllowAnonymous, RequiredApiKey, EnableRateLimiting("Chat")]
+    public class SemanticSearchController : ControllerBase
     {
-        private readonly ISemanticSearchService _semanticSearchService;
-    
-        public SemanticSearchController(ISemanticSearchService semanticSearchService)
+        private readonly ISemanticSearchService service;
+        public SemanticSearchController(ISemanticSearchService service)
         {
-            _semanticSearchService = semanticSearchService;
+            this.service = service;
         }
-    
+
         [HttpPost("askQuery")]
-        public async Task<string> AskQueary(SematicSearchingDto semanticSearchingDto)
+        public async Task<ChatAnswerDto> Ask(SematicSearchingDto request)
         {
-        
-            var apiKey=HttpContext.Items["ApiKey"]?.ToString();
-        
-            if (apiKey == null)
+            Prepare(request);
+            var answer = await service.SearchEmbeddings(request);
+            return new ChatAnswerDto(request.ChatBotId, request.ConversationId!.Value, answer);
+        }
+
+        [HttpPost("stream"), Produces("text/event-stream")]
+        public async Task Stream(SematicSearchingDto request, CancellationToken cancellationToken)
+        {
+            Prepare(request);
+            Response.ContentType = "text/event-stream";
+            try
             {
-                return "no api key found";
+                await foreach (var part in service.StreamAsync(request, cancellationToken))
+                {
+                    await WriteEvent(part, cancellationToken);
+                }
             }
-        
-            semanticSearchingDto.ApiKey = apiKey;
-            return await _semanticSearchService.SearchEmbeddings(semanticSearchingDto);
-        
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+            }
+            catch (Exception exception)
+            {
+                HttpContext.RequestServices.GetRequiredService<ILogger<SemanticSearchController>>().LogError(exception, "Streaming chat failed");
+                await WriteEvent(new ChatStreamEvent("error", exception is ApiException ? exception.Message : "Chat generation failed."), cancellationToken);
+            }
+        }
+
+        private void Prepare(SematicSearchingDto request)
+        {
+            var id = (int)HttpContext.Items["ChatbotId"]!;
+            if (request.ChatBotId != 0 && request.ChatBotId != id)
+            {
+                throw new ApiException(403, "The key belongs to a different chatbot.");
+            }
+
+            request.ChatBotId = id;
+            request.ApiKey = (string)HttpContext.Items["ApiKey"]!;
+        }
+
+        private async Task WriteEvent(ChatStreamEvent part, CancellationToken cancellationToken)
+        {
+            var json = JsonSerializer.Serialize(part, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            await Response.WriteAsync($"event: {part.Type}\ndata: {json}\n\n", cancellationToken);
+            await Response.Body.FlushAsync(cancellationToken);
         }
     }
 }

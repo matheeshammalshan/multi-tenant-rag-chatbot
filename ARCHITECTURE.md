@@ -1,6 +1,6 @@
 # Architecture
 
-The chatbot follows iDraw's root-level .NET solution layout. Open `multi-tenant-chatbot.sln` in Visual Studio or Rider.
+The chatbot uses a conventional .NET Clean Architecture solution layout. Open `multi-tenant-chatbot.sln` in Visual Studio or Rider.
 
 ```text
 multi-tenant-rag-chatbot/
@@ -8,7 +8,6 @@ multi-tenant-rag-chatbot/
 │   ├── Controllers/
 │   ├── Filters/
 │   ├── Requests/
-│   ├── WebSockets/
 │   ├── Properties/
 │   ├── wwwroot/                  # Existing uploads (when present)
 │   ├── Program.cs
@@ -36,7 +35,8 @@ multi-tenant-rag-chatbot/
 │   ├── FileStorage/
 │   ├── LlmModels/
 │   ├── Observers/
-│   ├── Persistence/             # EF Core DbContext
+│   ├── Migrations/              # Versioned SQL schema and model snapshot
+│   ├── Persistence/             # EF Core DbContext and design-time factory
 │   ├── Repositories/            # SQL and MongoDB adapters
 │   └── Infrastructure.csproj
 ├── tests/Chatbot.RegressionChecks/
@@ -50,15 +50,17 @@ Namespaces match folders, for example `Application.Interfaces.Services`, `Applic
 | Domain | Entities and model enum | None |
 | Application | Workflows, DTOs, mapping, integration interfaces | Domain |
 | Infrastructure | EF Core/MySQL, MongoDB, Qdrant, LLM providers, document readers, file storage | Application |
-| Api | Controllers, HTTP requests, API key filters, WebSockets, startup | Application, Infrastructure |
+| Api | Controllers, HTTP requests, API key filters, startup | Application, Infrastructure |
 
-Application defines `IApplicationRepository`, `IApplicationTransaction`, `IChatHistoryRepository`, and `IDocumentNotifier`. Infrastructure implements persistence; Api implements WebSocket notifications. Domain and Application do not depend on the external integrations or HTTP layer.
+Application defines `IApplicationRepository`, `IApplicationTransaction`, `IChatHistoryRepository`. Infrastructure implements persistence. Document processing persists status for HTTP list/details reads. Domain and Application do not depend on the external integrations or HTTP layer.
 
-`Application.Configuration.DependencyInjection.AddApplication()` registers workflows. `Infrastructure.Configuration.DependencyInjection.AddInfrastructure()` registers adapters and persistence. `Api/Program.cs` connects these layers, initializes the database, and activates the document observer.
+`Application.Configuration.DependencyInjection.AddApplication()` registers workflows. `Infrastructure.Configuration.DependencyInjection.AddInfrastructure()` registers adapters and persistence. `Api/Program.cs` connects these layers and activates the document observer. SQL schema changes are applied explicitly through EF Core migrations; API startup does not create or migrate the database. See [MIGRATIONS.md](MIGRATIONS.md).
 
 The API project and its existing configuration, launch profiles, and uploaded files move together to `Api`. Routes, request fields, database schema, MongoDB collection, and Qdrant chatbot filters are preserved. HTTP uploads bind to `DocumentRequest`; controllers pass stream-based `DocumentUpload` objects into Application.
 
 ## Build and verify
+
+For Docker dependencies and Visual Studio startup instructions, see [RUNNING.md](RUNNING.md).
 
 Run from the solution directory:
 
@@ -72,6 +74,6 @@ The regression executable checks layer dependencies, dependency injection scopes
 
 ## Adding features
 
-Put entities and core rules in Domain, workflows and interfaces in Application, external implementations in Infrastructure, and HTTP/WebSocket concerns in Api. Infrastructure implements Application interfaces. Domain and Application must never reference Api or Infrastructure.
+Put entities and core rules in Domain, workflows and interfaces in Application, external implementations in Infrastructure, and HTTP concerns in Api. Infrastructure implements Application interfaces. Domain and Application must never reference Api or Infrastructure.
 
 The layout mirrors iDraw where responsibilities correspond; chatbot-specific integrations retain their own folders. There is no `Api.Shared` project because the chatbot currently has no shared API component requiring a separate assembly. The existing .NET 9 target and package versions are retained.

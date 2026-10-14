@@ -1,6 +1,5 @@
 using System;
 
-
 namespace Application.DTOs
 {
     public class DocumentDto
@@ -13,8 +12,6 @@ namespace Application.DTOs
         public string? Status { get; set; }
         public required DocumentUpload File { get; set; }
         public string? FileUrl { get; set; }
-    
         public ReaderType ReaderType { get; set; }
-    
     }
 }
